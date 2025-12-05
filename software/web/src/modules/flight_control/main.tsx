@@ -42,6 +42,14 @@ export class FlightControl extends Component<{}> {
             const fConfig = API.get("flight_control/config");
             console.log(fConfig);
         });
+
+        util.addApiEventListener("flight_control/state", () => {
+            /*
+                Receive data from backend!
+            */
+            const fstate = API.get("flight_control/state");
+            console.log(fstate);
+        });        
     }
     onAltitudeSliderValueChanged = (event: Event) => {
         const target = event.target as HTMLInputElement;

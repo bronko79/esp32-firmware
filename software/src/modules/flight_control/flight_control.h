@@ -34,7 +34,28 @@ public:
     void setup() override;
     void register_urls() override;
     void loop() override;
+    void mixer();
+
+    ConfigRoot state;
 
     ConfigRoot config;
-    ConfigRoot config_update;  
+    ConfigRoot config_update; 
+
+    struct FlightControlSettings
+    {
+        float maxAcceleration = 2000;
+        float idleThrottle = 0.00;
+    };
+    FlightControlSettings flightControlSettings; 
+
+    struct FlightControlValues
+    {
+        float altitudeAcceleration = 0;
+        float roll = 0;
+        float yaw = 0;
+        float pitch = 0;
+    };
+    FlightControlValues flightControlSetPoints;    
+    FlightControlValues flightControlCurrentValues;
+
 };
