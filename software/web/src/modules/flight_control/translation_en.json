@@ -1,0 +1,18 @@
+{
+    "flight_control": {
+        "status": {
+        },
+        "navbar": {
+            "flight_control": "Flight Control"
+        },
+        "content": {
+            "flight_control": "Flight Control"
+        },
+        "script": {
+            "save_config_failed": "Could not save color",
+            "button_unknown": "Unknown",
+            "button_pressed": "Pressed",
+            "button_released": "Released"
+        }
+    }
+}

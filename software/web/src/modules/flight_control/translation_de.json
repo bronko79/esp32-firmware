@@ -1,0 +1,18 @@
+{
+    "flight_control": {
+        "status": {
+        },
+        "navbar": {
+            "flight_control": "Flight Control"
+        },
+        "content": {
+            "flight_control": "Flight Control"
+        },
+        "script": {
+            "save_config_failed": "Konnte Farbe nicht speichern",
+            "button_unknown": "Unbekannt",
+            "button_pressed": "Gedrückt",
+            "button_released": "Losgelassen"
+        }
+    }
+}
