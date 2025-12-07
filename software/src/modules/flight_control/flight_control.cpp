@@ -35,6 +35,10 @@ static void onIMUData(float lastGyro[3], float lastAccel[3], void *context_data)
     logger.printfln("FC lastGyro %f", lastGyro[0]);
 }
 
+void FlightControl::onRemoteControlData(float roll, float pitch, float yaw, float throttle) {
+    logger.printfln("FC throttle %f", throttle);
+}
+
 void FlightControl::pre_setup()
 {   
 
@@ -71,7 +75,8 @@ void FlightControl::register_urls()
         /*
             Received from FrontEnd
         */       
-        float throttle = config_update.get("setAltitude")->asFloat() / 100;
+        float throttle = config_update.get("setAltitude")->asFloat();
+        onRemoteControlData((float)0, (float)0, (float)0, throttle);
 
     }, false);
 }

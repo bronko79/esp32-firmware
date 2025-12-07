@@ -36,6 +36,8 @@ public:
     void register_urls() override;
     void loop() override;
 
+    void onRemoteControlData(float roll, float pitch, float yaw, float throttle);
+
     ConfigRoot state;
 
     ConfigRoot config;
