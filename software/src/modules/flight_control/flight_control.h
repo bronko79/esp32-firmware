@@ -21,9 +21,10 @@
 
 #include "module.h"
 #include "config.h"
+#include "tinkerforgeIMU.h"
 
 //#include "bindings/bricklet_distance_ir_v2.h"
-#include "bindings/bricklet_imu_v3.h"
+//#include "bindings/bricklet_imu_v3.h"
 
 
 class FlightControl final : public IModule
@@ -41,21 +42,6 @@ public:
     ConfigRoot config;
     ConfigRoot config_update; 
 
-    struct FlightControlSettings
-    {
-        float maxAcceleration = 2000;
-        float idleThrottle = 0.00;
-    };
-    FlightControlSettings flightControlSettings; 
-
-    struct FlightControlValues
-    {
-        float altitudeAcceleration = 0;
-        float roll = 0;
-        float yaw = 0;
-        float pitch = 0;
-    };
-    FlightControlValues flightControlSetPoints;    
-    FlightControlValues flightControlCurrentValues;
+    TinkerforgeIMU tinkerforgeIMU;
 
 };

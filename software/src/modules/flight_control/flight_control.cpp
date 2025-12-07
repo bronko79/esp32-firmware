@@ -28,34 +28,11 @@
 #include "bindings/errors.h"
 
 extern TF_HAL hal;
-//TF_DistanceIRV2 distance_ir_v2;
-TF_IMUV3 imu;
 
-
-
-void static acceleration_handler(TF_IMUV3 *imu_v3, int16_t x, int16_t y, int16_t z, void *user_data) {
-    FlightControl *flightControl = (FlightControl *)user_data;
-    //logger.printfln("Acc Y: %d", y);
-    flightControl->flightControlCurrentValues.altitudeAcceleration = z / flightControl->flightControlSettings.maxAcceleration;
+static void onIMUData(float lastGyro[3], float lastAccel[3], void *context_data){
     
-    logger.printfln("%f, %f, %f", x / (float)1, y / (float)1, z / (float)1);
-
-
-    //flightControl->mixer();
-}
-
-void static quaternion_handler(TF_IMUV3 *device, int16_t w, int16_t x, int16_t y, int16_t z, void *user_data) {
-    
-    FlightControl *flightControl = (FlightControl *)user_data;                   
-    //logger.printfln("X: %f", x / (float)16383);
-
-    float div = 16383;
-    flightControl->flightControlCurrentValues.roll = x / div;
-    flightControl->flightControlCurrentValues.pitch = y / div;
-    flightControl->flightControlCurrentValues.yaw = z / div;
-
-    
-    //flightControl->mixer();
+    FlightControl *self = (FlightControl *)context_data;
+    logger.printfln("FC lastGyro %f", lastGyro[0]);
 }
 
 void FlightControl::pre_setup()
@@ -74,23 +51,15 @@ void FlightControl::pre_setup()
 
 void FlightControl::setup()
 {
-    uint16_t interval = 500;
+    uint16_t interval = 1000;
 
     logger.printfln("FlightControl module initializing...");
+    tinkerforgeIMU = TinkerforgeIMU();
+    int r = tinkerforgeIMU.start(&hal, interval, &onIMUData, this);
 
-    tf_imu_v3_create(&imu, NULL, &hal);
 
-    tf_imu_v3_register_quaternion_callback(&imu, quaternion_handler, this);
-    tf_imu_v3_set_quaternion_callback_configuration(&imu, interval, false);
-
-    //tf_imu_v3_register_acceleration_callback(&imu, acceleration_handler, this);
-    //tf_imu_v3_set_acceleration_callback_configuration(&imu, interval, false);
-
-    tf_imu_v3_register_linear_acceleration_callback(&imu, acceleration_handler, this);
-    tf_imu_v3_set_linear_acceleration_callback_configuration(&imu, interval, false);
-
+    logger.printfln("FlightControl module initialized: %d", r);
     initialized = true;
-    logger.printfln("FlightControl module initialized");
 }
 
 void FlightControl::register_urls()
@@ -111,6 +80,7 @@ void FlightControl::loop()
 {
 }
 
+/*
 void FlightControl::mixer()
 {
     float motor_out[4];
@@ -136,3 +106,4 @@ void FlightControl::mixer()
     state.get("motor")->updateFloat(motor_out[0]);
 
 }
+*/
