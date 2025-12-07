@@ -71,8 +71,8 @@ void FlightControl::register_urls()
         /*
             Received from FrontEnd
         */       
-        float acc = config_update.get("setAltitude")->asFloat();
-        flightControlSetPoints.altitudeAcceleration = ((acc/100) * flightControlSettings.maxAcceleration);
+        float throttle = config_update.get("setAltitude")->asFloat() / 100;
+
     }, false);
 }
 
