@@ -36,7 +36,7 @@ TF_IMUV3 imu;
 void static acceleration_handler(TF_IMUV3 *imu_v3, int16_t x, int16_t y, int16_t z, void *user_data) {
     FlightControl *flightControl = (FlightControl *)user_data;
     //logger.printfln("Acc Y: %d", y);
-    flightControl->flightControlCurrentValues.altitudeAcceleration = y / flightControl->flightControlSettings.maxAcceleration;
+    flightControl->flightControlCurrentValues.altitudeAcceleration = z / flightControl->flightControlSettings.maxAcceleration;
     
     logger.printfln("%f, %f, %f", x / (float)1, y / (float)1, z / (float)1);
 
