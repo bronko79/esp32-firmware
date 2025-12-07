@@ -29,7 +29,7 @@
 
 extern TF_HAL hal;
 
-static void onIMUData(float lastGyro[3], float lastAccel[3], void *context_data){
+static void onIMUData(const float lastGyro[3], const float lastAccel[3], void *context_data){
     
     FlightControl *self = (FlightControl *)context_data;
     logger.printfln("FC lastGyro %f", lastGyro[0]);
