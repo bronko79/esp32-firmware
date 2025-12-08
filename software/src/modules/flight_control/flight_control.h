@@ -21,28 +21,57 @@
 
 #include "module.h"
 #include "config.h"
+
 #include "tinkerforgeIMU.h"
+#include "TimeProvider.h"
+#include "AttitudeEstimator.h"
+#include "PID.h"
+#include "MotorMixer.h"
 
-//#include "bindings/bricklet_distance_ir_v2.h"
-//#include "bindings/bricklet_imu_v3.h"
-
+struct RemoteControl {
+    float roll  = 0.0f;
+    float pitch = 0.0f;
+    float yaw   = 0.0f;
+    float throttle   = 0.0f;
+};
 
 class FlightControl final : public IModule
 {
 public:
-    FlightControl(){}
+    FlightControl(){};
     void pre_setup() override;
     void setup() override;
     void register_urls() override;
     void loop() override;
 
-    void onRemoteControlData(float roll, float pitch, float yaw, float throttle);
-
     ConfigRoot state;
-
     ConfigRoot config;
     ConfigRoot config_update; 
 
+    void onRemoteControlData(float roll, float pitch, float yaw, float throttle);
+    void update();
+    float stickToThrust(float stick);
+
+    float m_lastTime = 0.0f;
+    float* m_gyro;
+    float* m_accel;
+    float* m_euler;
+    RemoteControl remoteControlData;
+
+    TimeProvider timeProvider;
     TinkerforgeIMU tinkerforgeIMU;
+    AttitudeEstimator attitudeEstimator;
+    MotorMixer motorMixer;
+
+    PID pidRollAngle;
+    PID pidPitchAngle;
+
+    PID pidRollRate;
+    PID pidPitchRate;
+    PID pidYawRate;
+
+    PID pidVz;
+    float m_vz = 0;
+    float m_hoverThrust = 0.5;
 
 };

@@ -13,8 +13,9 @@ private:
     float m_alpha; // z.B. 0.98
 
 public:
+    AttitudeEstimator();
     AttitudeEstimator(float alpha);
-    void update(const float gyro[3], const float accel[3], float dt);
+    void update(float euler[3]);
     const Attitude& getAttitude() const;
     void reset();   
 };

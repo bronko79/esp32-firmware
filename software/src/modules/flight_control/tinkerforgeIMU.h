@@ -6,7 +6,7 @@
 #define M_PI 3.14159265358979323846
  
 
-typedef void (*IMUUserCallback)(const float lastGyro[3], const float lastAccel[3], void *context_data);
+typedef void (*IMUUserCallback)(float lastGyro[3], float lastAccel[3], float lastEuler[3], void *context_data);
 
 class TinkerforgeIMU {
 
