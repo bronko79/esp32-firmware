@@ -27,6 +27,7 @@
 #include "AttitudeEstimator.h"
 #include "PID.h"
 #include "MotorMixer.h"
+#include "MotorOutput.h"
 
 struct RemoteControl {
     float roll  = 0.0f;
@@ -62,6 +63,7 @@ public:
     TinkerforgeIMU tinkerforgeIMU;
     AttitudeEstimator attitudeEstimator;
     MotorMixer motorMixer;
+    MotorOutput motorOutput;
 
     PID pidRollAngle;
     PID pidPitchAngle;

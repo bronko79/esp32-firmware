@@ -174,6 +174,7 @@ void FlightControl::setup()
     timeProvider = TimeProvider();
     attitudeEstimator = AttitudeEstimator(0.98f);
     motorMixer = MotorMixer();
+    motorOutput = MotorOutput(&hal);
 
     pidRollAngle = PID(4.0f, 0.0f, 0.0f, 0.5f, 1);
     pidPitchAngle = PID(4.0f, 0.0f, 0.0f, 0.5f, 1);
