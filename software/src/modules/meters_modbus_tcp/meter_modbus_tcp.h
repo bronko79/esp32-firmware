@@ -113,13 +113,10 @@ private:
     bool is_carlo_gavazzi_em100_or_et100() const;
     bool is_carlo_gavazzi_em510() const;
     bool is_solaredge_inverter_battery_meter() const;
-    bool is_e3dc_hauskraftwerk_pv_meter() const;
     bool is_huawei_sun2000_battery_meter() const;
     bool is_huawei_sun2000_pv_meter() const;
     bool is_huawei_sun2000_smart_dongle_battery_meter() const;
-    bool is_huawei_sun2000_smart_dongle_pv_meter() const;
     bool is_huawei_emma_load_meter() const;
-    bool is_huawei_emma_pv_meter() const;
     bool is_solax_string_inverter_meter() const;
     bool is_solax_string_inverter_pv_meter() const;
     bool is_fox_ess_h3_smart_hybrid_inverter_battery_1_meter() const;
@@ -511,6 +508,11 @@ private:
             float pv1_power;
             float pv2_power;
         } chisage_ess_hybrid_inverter;
+
+        // Huawei Smart Logger 3000
+        struct {
+            HuaweiSmartLogger3000VirtualMeter virtual_meter;
+        } huawei_smart_logger_3000;
     };
 };
 

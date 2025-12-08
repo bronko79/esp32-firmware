@@ -702,6 +702,12 @@ void MeterModbusTCP::setup(Config *ephemeral_config)
         table = &janitza_table;
         break;
 
+    case MeterModbusTCPTableID::HuaweiSmartLogger3000:
+        device_address = ephemeral_table_config->get("device_address")->asUint8();
+        huawei_smart_logger_3000.virtual_meter = ephemeral_table_config->get("virtual_meter")->asEnum<HuaweiSmartLogger3000VirtualMeter>();
+        table = get_huawei_smart_logger_3000_table(slot, huawei_smart_logger_3000.virtual_meter);
+        break;
+
     default:
         logger.printfln_meter("Unknown table: %u", static_cast<uint8_t>(table_id));
         break;
@@ -957,12 +963,6 @@ bool MeterModbusTCP::is_solaredge_inverter_battery_meter() const
         && solaredge_inverter.virtual_meter == SolaredgeInverterVirtualMeter::Battery;
 }
 
-bool MeterModbusTCP::is_e3dc_hauskraftwerk_pv_meter() const
-{
-    return table_id == MeterModbusTCPTableID::E3DCHauskraftwerk
-        && e3dc_hauskraftwerk.virtual_meter == E3DCHauskraftwerkVirtualMeter::PV;
-}
-
 bool MeterModbusTCP::is_huawei_sun2000_battery_meter() const
 {
     return table_id == MeterModbusTCPTableID::HuaweiSUN2000
@@ -981,22 +981,10 @@ bool MeterModbusTCP::is_huawei_sun2000_smart_dongle_battery_meter() const
         && huawei_sun2000_smart_dongle.virtual_meter == HuaweiSUN2000SmartDongleVirtualMeter::Battery;
 }
 
-bool MeterModbusTCP::is_huawei_sun2000_smart_dongle_pv_meter() const
-{
-    return table_id == MeterModbusTCPTableID::HuaweiSUN2000SmartDongle
-        && huawei_sun2000_smart_dongle.virtual_meter == HuaweiSUN2000SmartDongleVirtualMeter::PV;
-}
-
 bool MeterModbusTCP::is_huawei_emma_load_meter() const
 {
     return table_id == MeterModbusTCPTableID::HuaweiEMMA
         && huawei_emma.virtual_meter == HuaweiEMMAVirtualMeter::Load;
-}
-
-bool MeterModbusTCP::is_huawei_emma_pv_meter() const
-{
-    return table_id == MeterModbusTCPTableID::HuaweiEMMA
-        && huawei_emma.virtual_meter == HuaweiEMMAVirtualMeter::PV;
 }
 
 bool MeterModbusTCP::is_solax_string_inverter_meter() const
@@ -1834,9 +1822,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
         }
-        else if (register_start_address == SungrowHybridInverterPVAddress::TotalDCPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
-        }
     }
     else if (is_sungrow_string_inverter_pv_meter()) {
         if (register_start_address == SungrowStringInverterPVAddress::MPPT1Voltage) {
@@ -1871,9 +1856,6 @@ void MeterModbusTCP::parse_next()
 
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
-        }
-        else if (register_start_address == SungrowStringInverterPVAddress::TotalDCPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
         }
     }
     else if (is_victron_energy_gx_load_meter()) {
@@ -1937,7 +1919,6 @@ void MeterModbusTCP::parse_next()
                             + victron_energy_gx.dc_coupled_pv_power;
 
             meters.update_value(slot, table->index[read_index + 1], power_sum);
-            meters.update_value(slot, table->index[read_index + 2], zero_safe_negation(power_sum));
         }
     }
     else if (is_deye_hybrid_inverter_pv_meter()) {
@@ -2013,9 +1994,8 @@ void MeterModbusTCP::parse_next()
                               + deye_hybrid_inverter.pv4_current;
 
             meters.update_value(slot, table->index[read_index + 1], power_sum);
-            meters.update_value(slot, table->index[read_index + 2], zero_safe_negation(power_sum));
-            meters.update_value(slot, table->index[read_index + 3], voltage_avg);
-            meters.update_value(slot, table->index[read_index + 4], current_sum);
+            meters.update_value(slot, table->index[read_index + 2], voltage_avg);
+            meters.update_value(slot, table->index[read_index + 3], current_sum);
         }
     }
     else if (is_alpha_ess_hybrid_inverter_pv_meter()) {
@@ -2125,7 +2105,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_shelly_pro_xem_monophase()) {
@@ -2237,7 +2216,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_goodwe_hybrid_inverter_pv_meter()) {
@@ -2366,7 +2344,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_fronius_gen24_plus_battery_meter()) {
@@ -2554,7 +2531,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_fox_ess_h3_ac3_hybrid_inverter_pv_meter()) {
@@ -2600,7 +2576,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_carlo_gavazzi_em100_or_et100()) {
@@ -2661,29 +2636,9 @@ void MeterModbusTCP::parse_next()
             value = nan_safe_avg(solaredge_inverter.battery_1_state_of_charge, value);
         }
     }
-    else if (is_e3dc_hauskraftwerk_pv_meter()) {
-        if (register_start_address == E3DCHauskraftwerkPVAddress::PVPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
-        }
-    }
-    else if (is_huawei_sun2000_pv_meter()) {
-        if (register_start_address == HuaweiSUN2000PVAddress::InputPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
-        }
-    }
-    else if (is_huawei_sun2000_smart_dongle_pv_meter()) {
-        if (register_start_address == HuaweiSUN2000SmartDonglePVAddress::InputPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
-        }
-    }
     else if (is_huawei_emma_load_meter()) {
         if (register_start_address == HuaweiEMMALoadAddress::LoadPower) {
             meters.update_value(slot, table->index[read_index + 1], value);
-        }
-    }
-    else if (is_huawei_emma_pv_meter()) {
-        if (register_start_address == HuaweiEMMAPVAddress::PVOutputPower) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
         }
     }
     else if (is_solax_string_inverter_meter()) {
@@ -2750,7 +2705,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
     else if (is_fox_ess_h3_smart_hybrid_inverter_battery_1_meter()) {
@@ -2978,9 +2932,6 @@ void MeterModbusTCP::parse_next()
 
             meters.update_value(slot, table->index[read_index + 2], voltage_avg);
             meters.update_value(slot, table->index[read_index + 3], current_sum);
-        }
-        else if (register_start_address == FoxESSH3SmartHybridInverterPVAddress::PVPowerTotal) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
         }
     }
     else if (is_fox_ess_h3_pro_hybrid_inverter_battery_1_meter()) {
@@ -3233,9 +3184,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 2], voltage_avg);
             meters.update_value(slot, table->index[read_index + 3], current_sum);
         }
-        else if (register_start_address == FoxESSH3ProHybridInverterPVAddress::PVPowerTotal) {
-            meters.update_value(slot, table->index[read_index + 1], zero_safe_negation(value));
-        }
     }
     else if (is_sma_hybrid_inverter_battery_meter()) {
         if (register_start_address == SMAHybridInverterBatteryAddress::BatChrgCurBatCha) {
@@ -3332,7 +3280,6 @@ void MeterModbusTCP::parse_next()
             meters.update_value(slot, table->index[read_index + 1], voltage_avg);
             meters.update_value(slot, table->index[read_index + 2], current_sum);
             meters.update_value(slot, table->index[read_index + 3], power_sum);
-            meters.update_value(slot, table->index[read_index + 4], zero_safe_negation(power_sum));
         }
     }
 
