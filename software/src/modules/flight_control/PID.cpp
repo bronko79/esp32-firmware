@@ -10,11 +10,8 @@ PID::PID() {
     //PID (4.0f, 0.0f, 0.0f, 0.5f, 1); 
 }
 
-PID::PID(float kp,
-        float ki,
-        float kd,
-        float integratorLimit,
-        float outputLimit) : m_kp(kp)
+PID::PID(float kp, float ki, float kd, float integratorLimit, float outputLimit) : 
+        m_kp(kp)
         , m_ki(ki)
         , m_kd(kd)
         , m_integratorLimit(integratorLimit)

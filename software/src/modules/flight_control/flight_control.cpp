@@ -119,7 +119,7 @@ void FlightControl::update() {
     m_vz += a_z_world_linear * dt;  // [m/s]
 
     // Throttle-Stick -> gewünschte Vertikalgeschwindigkeit
-    constexpr float MAX_VZ = 2.0f; // m/s
+    constexpr float MAX_VZ = 2000.0f; // m/s
     float vz_setpoint = remoteControlData.throttle * MAX_VZ;
 
     // PID auf Vertikalgeschwindigkeit -> Thrust-Offset
