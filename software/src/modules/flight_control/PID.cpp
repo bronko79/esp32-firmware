@@ -10,12 +10,24 @@ PID::PID() {
     //PID (4.0f, 0.0f, 0.0f, 0.5f, 1); 
 }
 
+PID::PID(float kp, float ki, float kd, float integratorLimit, float outputLimit, float outputMin) : 
+        m_kp(kp)
+        , m_ki(ki)
+        , m_kd(kd)
+        , m_integratorLimit(integratorLimit)
+        , m_outputLimit(outputLimit)
+        , m_outputMin(outputMin)
+{
+
+}
+
 PID::PID(float kp, float ki, float kd, float integratorLimit, float outputLimit) : 
         m_kp(kp)
         , m_ki(ki)
         , m_kd(kd)
         , m_integratorLimit(integratorLimit)
         , m_outputLimit(outputLimit)
+        , m_outputMin(-outputLimit)
 {
 
 }
@@ -26,7 +38,7 @@ float PID::update(float setpoint, float measurement, float dt) {
         // Kein Fortschritt in der Zeit -> nur P-Term ohne Integrator/D-Anteil
         float error = setpoint - measurement;
         float output = m_kp * error;
-        return clamp(output, -m_outputLimit, m_outputLimit);
+        return clamp(output, m_outputMin, m_outputLimit);
     }
 
     const float error = setpoint - measurement;
@@ -48,7 +60,7 @@ float PID::update(float setpoint, float measurement, float dt) {
     float output = pTerm + iTerm + dTerm;
 
     // Output-Limit
-    output = clamp(output, -m_outputLimit, m_outputLimit);
+    output = clamp(output, m_outputMin, m_outputLimit);
     return output;
 }
 

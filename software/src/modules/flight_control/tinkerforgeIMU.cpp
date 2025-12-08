@@ -9,36 +9,20 @@ static void onIMUData(TF_IMUV3 *device, int16_t acceleration[3],
 
 
     TinkerforgeIMU *self = (TinkerforgeIMU *)user_data;
-
     float gyroData[3];
-    float accelData[3];
-    float eulerData[3];
-
-    // Umrechnung:
-    //  - Accel: 1 cm/s^2 → m/s^2 (durch 100) :contentReference[oaicite:7]{index=7}
-    //  - Gyro:  1/16 °/s → rad/s          :contentReference[oaicite:8]{index=8}
 
     constexpr float DEG_TO_RAD = static_cast<float>(M_PI) / 180.0f;
     constexpr float GYRO_SCALE = 1.0f / 16.0f; // 1/16 °/s
-    constexpr float EULER_LSB_TO_DEG = 1.0f / 16.0f; // 1/16 °
 
-    
     for (int i = 0; i < 3; ++i) {
-        // Accel
-        accelData[i] = static_cast<float>(linear_acceleration[i]);
-
         // Gyro 
         float deg_per_s = static_cast<float>(angular_velocity[i]) * GYRO_SCALE;
-        gyroData[i] = deg_per_s * DEG_TO_RAD;
-
-        // Euler
-        float deg = static_cast<float>(euler_angle[i]) * EULER_LSB_TO_DEG;
-        eulerData[i] = deg * DEG_TO_RAD; // rad        
+        gyroData[i] = deg_per_s * DEG_TO_RAD;   
     }
 
-
-
-    self->m_userCallback(gyroData, accelData, eulerData, self->m_context_data);
+    self->m_userCallback(gyroData, 
+        Quaternion(quaternion[0], quaternion[1], quaternion[2],quaternion[3])
+        , self->m_context_data);
 }
 
 TinkerforgeIMU::TinkerforgeIMU(){

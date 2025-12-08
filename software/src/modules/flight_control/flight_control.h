@@ -22,6 +22,7 @@
 #include "module.h"
 #include "config.h"
 
+
 #include "tinkerforgeIMU.h"
 #include "TimeProvider.h"
 #include "AttitudeEstimator.h"
@@ -55,8 +56,7 @@ public:
 
     float m_lastTime = 0.0f;
     float* m_gyro;
-    float* m_accel;
-    float* m_euler;
+    Quaternion m_quaternion;
     RemoteControl remoteControlData;
 
     TimeProvider timeProvider;
@@ -72,8 +72,5 @@ public:
     PID pidPitchRate;
     PID pidYawRate;
 
-    PID pidVz;
-    float m_vz = 0;
-    float m_hoverThrust = 0.5;
-
+    float m_kAttQuat = 4.0f;
 };

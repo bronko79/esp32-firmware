@@ -22,10 +22,10 @@ void MotorMixer::mix(float thrust, float tauRoll, float tauPitch, float tauYaw, 
     motors[3] = thrust + tauRoll - tauPitch + tauYaw; // M3
 */
 
-    motors[0] = thrust - tauRoll + tauPitch - tauYaw; // M0
-    motors[1] = thrust + tauRoll + tauPitch + tauYaw; // M1
-    motors[2] = thrust + tauRoll - tauPitch - tauYaw; // M2
-    motors[3] = thrust - tauRoll - tauPitch + tauYaw; // M3
+    motors[0] = thrust + tauRoll - tauPitch - tauYaw; // M0
+    motors[1] = thrust - tauRoll - tauPitch + tauYaw; // M1
+    motors[2] = thrust - tauRoll + tauPitch - tauYaw; // M2
+    motors[3] = thrust + tauRoll + tauPitch + tauYaw; // M3
 
 
     for (int i = 0; i < 4; ++i) {

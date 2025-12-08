@@ -4,6 +4,7 @@ class PID {
 
 public:
     PID();
+    PID(float kp, float ki, float kd, float integratorLimit, float outputLimit, float outputMin);
     PID(float kp, float ki, float kd, float integratorLimit, float outputLimit);
     float update(float setpoint, float measurement, float dt);
     void reset();
@@ -18,5 +19,5 @@ private:
 
     float m_integratorLimit;
     float m_outputLimit;
-
+    float m_outputMin;
 };

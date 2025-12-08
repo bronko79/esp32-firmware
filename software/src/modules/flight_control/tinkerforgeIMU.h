@@ -1,13 +1,14 @@
 #pragma once
 
+#include "Quaternion.h"
 #include "bindings/hal_common.h"
 #include "bindings/bricklet_imu_v3.h"
 
 #define M_PI 3.14159265358979323846
  
 
-typedef void (*IMUUserCallback)(float lastGyro[3], float lastAccel[3], float lastEuler[3], void *context_data);
-
+typedef void (*IMUUserCallback)(float lastGyro[3], Quaternion quaternion, void *context_data);
+ 
 class TinkerforgeIMU {
 
 public:

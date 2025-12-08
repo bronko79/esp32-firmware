@@ -31,13 +31,12 @@ extern TF_HAL hal;
 
 constexpr float deg2rad(float deg) { return deg * static_cast<float>(M_PI) / 180.0f; }
 
-static void onIMUData(float lastGyro[3], float lastAccel[3], float lastEuler[3], void *context_data){
+static void onIMUData(float lastGyro[3], Quaternion quaternion, void *context_data){
     
     //FlightControl *self = (FlightControl *)context_data;
     FlightControl* self = static_cast<FlightControl*>(context_data);
     self->m_gyro = lastGyro;
-    self->m_accel = lastAccel;
-    self->m_euler = lastEuler;
+    self->m_quaternion = quaternion;
 
     self->update();
     
@@ -55,93 +54,67 @@ void FlightControl::onRemoteControlData(float roll, float pitch, float yaw, floa
 
 void FlightControl::update() {
     const float now = timeProvider.now();
-
-
-    float dt = 0.01; //now - m_lastTime;
+    float dt = now - m_lastTime;
     m_lastTime = now;
 
-    attitudeEstimator.update(m_euler);
-    const Attitude& att = attitudeEstimator.getAttitude();
-    //logger.printfln("%f, %f, %f", att.roll, att.pitch, att.yaw);
+    m_quaternion.normalize(); 
 
+    float roll_e, pitch_e, yaw_e;
+    m_quaternion.toEuler(roll_e, pitch_e, yaw_e);    
 
-    // ---------- ANGLE-MODE (wie vorher) ----------
-    constexpr float PI_F = 3.14159265358979323846f;
-    auto deg2rad = [](float d){ return d * PI_F / 180.0f; };
+    constexpr float MAX_TILT_DEG = 30.0f;
+    const float maxTiltRad = deg2rad(MAX_TILT_DEG);
 
-    constexpr float MAX_ANGLE_DEG = 30.0f;
-    const float maxAngleRad = deg2rad(MAX_ANGLE_DEG);
+    float roll_sp  = remoteControlData.roll  * maxTiltRad;
+    float pitch_sp = remoteControlData.pitch * maxTiltRad;
 
-    const float rollAngleSetpoint  = remoteControlData.roll  * maxAngleRad;
-    const float pitchAngleSetpoint = remoteControlData.pitch * maxAngleRad;
+    // Yaw im Quaternion-Angle-Controller NICHT ändern (Heading hold nicht gewünscht),
+    // deshalb yaw_sp = yaw_e (aktueller Yaw)
+    float yaw_sp = yaw_e;
 
-    dt = 0.01f;
-    // Outer Loop: Winkel-PID -> Rate-Sollwerte
-    const float rollRateSetpointFromAngle =  pidRollAngle.update(rollAngleSetpoint,  att.roll,  dt);
-    const float pitchRateSetpointFromAngle = pidPitchAngle.update(pitchAngleSetpoint, att.pitch, dt);
+    Quaternion q_des = Quaternion::fromEuler(roll_sp, pitch_sp, yaw_sp);
 
-    // Yaw weiter als Rate-Mode
+    // 5. Fehler-Quaternion: q_err = q_des * conj(q_current)
+    Quaternion q_err = q_des * m_quaternion.conjugate();
+    q_err.normalize();
+
+   // Sicherstellen, dass wir den "kleinen" Winkel nehmen:
+    if (q_err.w < 0.0f) {
+        q_err.w = -q_err.w;
+        q_err.x = -q_err.x;
+        q_err.y = -q_err.y;
+        q_err.z = -q_err.z;
+    }
+
+    // 6. Quaternion-Fehler → Rate-Sollwerte (Body-Frame)
+    // Für kleine Fehler gilt: omega_sp ≈ 2 * Kp * (qx,qy,qz)
+    float rollRateSetpoint  = 2.0f * m_kAttQuat * q_err.x;
+    float pitchRateSetpoint = 2.0f * m_kAttQuat * q_err.y;
+
+    // Yaw: weiter klassisch über Stick als Rate-Command
     constexpr float MAX_YAW_RATE_DEG = 180.0f;
     const float maxYawRateRad = deg2rad(MAX_YAW_RATE_DEG);
-    const float yawRateSetpoint = remoteControlData.yaw * maxYawRateRad;
+    float yawRateSetpoint = remoteControlData.yaw * maxYawRateRad;
+    
+    // Optional: Begrenzen der Setpoints
+    constexpr float MAX_RATE_DEG = 400.0f;
+    const float maxRateRad = deg2rad(MAX_RATE_DEG);
+    rollRateSetpoint  = clamp(rollRateSetpoint,  -maxRateRad, maxRateRad);
+    pitchRateSetpoint = clamp(pitchRateSetpoint, -maxRateRad, maxRateRad);
 
+    // 7. Innerer Rate-Loop (wie gehabt)
+    float tauRoll  = pidRollRate.update( rollRateSetpoint,  m_gyro[0], dt );
+    float tauPitch = pidPitchRate.update( pitchRateSetpoint, m_gyro[1], dt );
+    float tauYaw   = pidYawRate.update( yawRateSetpoint,      m_gyro[2], dt );
 
-    // -------------------------------
-    // INNER LOOP: Rate-PIDs
-    // -------------------------------
-    const float tauRoll  = pidRollRate.update( rollRateSetpointFromAngle, m_gyro[0], dt );
-    const float tauPitch = pidPitchRate.update( pitchRateSetpointFromAngle, m_gyro[1], dt );
-    const float tauYaw   = pidYawRate.update( yawRateSetpoint, m_gyro[2], dt );
-
-    // 4. Thrust aus Throttle-Stick
-    //float thrust = stickToThrust(0.2);
-
-
-    // -------------------------------
-    // HÖHENREGELUNG mit linearer Beschleunigung
-    // -------------------------------
-    const float ax = m_accel[0];
-    const float ay = m_accel[1];
-    const float az = m_accel[2];
-
-    const float sphi = std::sin(att.roll);
-    const float cphi = std::cos(att.roll);
-    const float sthe = std::sin(att.pitch);
-    const float cthe = std::cos(att.pitch);
-
-    // Rotation Body -> Welt, Z-Komponente
-    // a_z_world_linear = -sin(theta)*ax + sin(phi)*cos(theta)*ay + cos(phi)*cos(theta)*az
-    float a_z_world_linear = -sthe * ax + sphi * cthe * ay + cphi * cthe * az;
-
-    // KEIN g abziehen – linear_accel ist bereits ohne Gravitation!
-
-    // Vertikalgeschwindigkeit integrieren
-    m_vz += a_z_world_linear * dt;  // [m/s]
-
-    // Throttle-Stick -> gewünschte Vertikalgeschwindigkeit
-    constexpr float MAX_VZ = 2000.0f; // m/s
-    float vz_setpoint = remoteControlData.throttle * MAX_VZ;
-
-    // PID auf Vertikalgeschwindigkeit -> Thrust-Offset
-    float thrustOffset = pidVz.update(vz_setpoint, m_vz, dt); // z.B. ±0.3
-
-    // Basis-Hover-Schub + Offset
-    float thrust = m_hoverThrust + thrustOffset;
+    // 8. Schub (hier z.B. erstmal linear aus Throttle, z.B. ohne Höhenregelung)
+    float thrust = 0.1f + 0.9f * (remoteControlData.throttle * 0.5f + 0.5f); // [-1,1]→[0,1]
     thrust = clamp(thrust, 0.0f, 1.0f);
 
-
-
-
-
-
-
-
-    // 5. Motoren mixen
+    // 9. Motoren mischen & ausgeben
     float motors[4];
     motorMixer.mix(thrust, tauRoll, tauPitch, tauYaw, motors);
-
-    logger.printfln("FL: %f, FR: %f, RR: %f, RL: %f", motors[0], motors[1], motors[2], motors[3]);
-
+    //m_motorOutput.writeMotors(motors);    
 }
 
 float FlightControl::stickToThrust(float stick) {
@@ -176,14 +149,9 @@ void FlightControl::setup()
     motorMixer = MotorMixer();
     motorOutput = MotorOutput(&hal);
 
-    pidRollAngle = PID(4.0f, 0.0f, 0.0f, 0.5f, 1);
-    pidPitchAngle = PID(4.0f, 0.0f, 0.0f, 0.5f, 1);
-
     pidRollRate = PID(0.1f, 0.01f, 0.001f, 10.0f, 0.5f);
     pidPitchRate = PID(0.1f, 0.01f, 0.001f, 10.0f, 0.5f);
     pidYawRate = PID(0.1f, 0.01f, 0.000f, 10.0f, 0.5f);
-
-    pidVz = PID(1.0f, 0.2f, 0.0f, 2.0f, 0.3f);
 
     int r = tinkerforgeIMU.start(&hal, interval, &onIMUData, this);
 
