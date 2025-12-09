@@ -56,6 +56,7 @@ public:
 
     float m_lastTime = 0.0f;
     float* m_gyro;
+    float* m_linearAccel;
     Quaternion m_quaternion;
     RemoteControl remoteControlData;
 
@@ -72,5 +73,16 @@ public:
     PID pidPitchRate;
     PID pidYawRate;
 
-    float m_kAttQuat = 4.0f;
+
+    PID pidVz;   // Vz-Regler: vz_setpoint vs m_vz → thrustOffset
+    PID pidAlt;  // Höhen-Regler: alt_setpoint vs m_altitude → vz_setpoint
+
+    // Hover-Schub als Konstante
+    float m_kAttQuat    = 1.0f; // Quaternion-Attitude-Gain
+
+    // Höhe / Vertikalgeschwindigkeit
+    float m_vz              = 0.0f;  // m/s
+    float m_altitude        = 0.0f;  // m
+    float m_altitudeSetpoint = 0.0f; // m
+    bool  m_altHoldActive   = false;
 };

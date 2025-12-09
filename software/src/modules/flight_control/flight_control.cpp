@@ -31,12 +31,13 @@ extern TF_HAL hal;
 
 constexpr float deg2rad(float deg) { return deg * static_cast<float>(M_PI) / 180.0f; }
 
-static void onIMUData(float lastGyro[3], Quaternion quaternion, void *context_data){
+static void onIMUData(float lastGyro[3], float linearAccData[3], Quaternion quaternion, void *context_data){
     
     //FlightControl *self = (FlightControl *)context_data;
     FlightControl* self = static_cast<FlightControl*>(context_data);
     self->m_gyro = lastGyro;
     self->m_quaternion = quaternion;
+    self->m_linearAccel = linearAccData;
 
     self->update();
     
@@ -53,32 +54,44 @@ void FlightControl::onRemoteControlData(float roll, float pitch, float yaw, floa
 }
 
 void FlightControl::update() {
+    // 0) Zeitdelta
     const float now = timeProvider.now();
     float dt = now - m_lastTime;
     m_lastTime = now;
 
-    m_quaternion.normalize(); 
+    if (dt <= 0.0f) {
+        return;
+    }
+    if (dt > 0.05f) { // Ausreißer begrenzen
+        dt = 0.05f;
+    }
+
+    // 1) Orientierung aus Quaternion
+    m_quaternion.normalize();
 
     float roll_e, pitch_e, yaw_e;
-    m_quaternion.toEuler(roll_e, pitch_e, yaw_e);    
+    m_quaternion.toEuler(roll_e, pitch_e, yaw_e); // rad
 
+    // 2) Quaternion-Attitude-Control (Roll/Pitch), Yaw als Rate vom Stick
+
+    // Ziel-Tilt aus RC-Sticks (Roll/Pitch in rad)
     constexpr float MAX_TILT_DEG = 30.0f;
     const float maxTiltRad = deg2rad(MAX_TILT_DEG);
 
     float roll_sp  = remoteControlData.roll  * maxTiltRad;
     float pitch_sp = remoteControlData.pitch * maxTiltRad;
 
-    // Yaw im Quaternion-Angle-Controller NICHT ändern (Heading hold nicht gewünscht),
-    // deshalb yaw_sp = yaw_e (aktueller Yaw)
+    // Yaw-Sollwinkel: hier aktueller Yaw (kein Heading-Hold)
     float yaw_sp = yaw_e;
 
+    // Ziel-Quaternion
     Quaternion q_des = Quaternion::fromEuler(roll_sp, pitch_sp, yaw_sp);
 
-    // 5. Fehler-Quaternion: q_err = q_des * conj(q_current)
+    // Fehler-Quaternion: q_err = q_des * conj(q_current)
     Quaternion q_err = q_des * m_quaternion.conjugate();
     q_err.normalize();
 
-   // Sicherstellen, dass wir den "kleinen" Winkel nehmen:
+    // „kleine“ Rotation wählen
     if (q_err.w < 0.0f) {
         q_err.w = -q_err.w;
         q_err.x = -q_err.x;
@@ -86,35 +99,102 @@ void FlightControl::update() {
         q_err.z = -q_err.z;
     }
 
-    // 6. Quaternion-Fehler → Rate-Sollwerte (Body-Frame)
-    // Für kleine Fehler gilt: omega_sp ≈ 2 * Kp * (qx,qy,qz)
+    // Quaternion-Fehler → Rate-Sollwerte
+    // Für kleine Fehler: omega_sp ≈ 2 * Kp * (qx,qy,qz)
     float rollRateSetpoint  = 2.0f * m_kAttQuat * q_err.x;
     float pitchRateSetpoint = 2.0f * m_kAttQuat * q_err.y;
 
-    // Yaw: weiter klassisch über Stick als Rate-Command
+    // Yaw als Rate-Command direkt vom Stick
     constexpr float MAX_YAW_RATE_DEG = 180.0f;
     const float maxYawRateRad = deg2rad(MAX_YAW_RATE_DEG);
     float yawRateSetpoint = remoteControlData.yaw * maxYawRateRad;
-    
-    // Optional: Begrenzen der Setpoints
+
+    // Rate-Setpoints begrenzen
     constexpr float MAX_RATE_DEG = 400.0f;
     const float maxRateRad = deg2rad(MAX_RATE_DEG);
     rollRateSetpoint  = clamp(rollRateSetpoint,  -maxRateRad, maxRateRad);
     pitchRateSetpoint = clamp(pitchRateSetpoint, -maxRateRad, maxRateRad);
 
-    // 7. Innerer Rate-Loop (wie gehabt)
+    // 3) Innerer Rate-Loop (Gyro in rad/s)
     float tauRoll  = pidRollRate.update( rollRateSetpoint,  m_gyro[0], dt );
     float tauPitch = pidPitchRate.update( pitchRateSetpoint, m_gyro[1], dt );
     float tauYaw   = pidYawRate.update( yawRateSetpoint,      m_gyro[2], dt );
 
-    // 8. Schub (hier z.B. erstmal linear aus Throttle, z.B. ohne Höhenregelung)
-    float thrust = 0.1f + 0.9f * (remoteControlData.throttle * 0.5f + 0.5f); // [-1,1]→[0,1]
+    // 4) Höhe und Vertikalgeschwindigkeit aus linearer Beschleunigung
+
+    // lineare Beschleunigung im Body-Frame (ohne g!)
+    const float ax = m_linearAccel[0];
+    const float ay = m_linearAccel[1];
+    const float az = m_linearAccel[2];
+
+    const float sphi = std::sin(roll_e);
+    const float cphi = std::cos(roll_e);
+    const float sthe = std::sin(pitch_e);
+    const float cthe = std::cos(pitch_e);
+
+    // Body -> Welt, Z-Komponente (linear, ohne g)
+    // a_z_world_linear = -sin(theta)*ax + sin(phi)*cos(theta)*ay + cos(phi)*cos(theta)*az
+    float a_z_world_linear = -sthe * ax + sphi * cthe * ay + cphi * cthe * az;
+
+    // Vertikalgeschwindigkeit integrieren
+    m_vz += a_z_world_linear * dt;       // [m/s]
+    // Höhe integrieren
+    m_altitude += m_vz * dt;            // [m]
+
+    // 5) Throttle-Logik: Stick ≠ 0 → steigen/sinken, Stick ≈ 0 → Höhe halten
+
+    float throttleStick = remoteControlData.throttle; // [-1,1]
+    constexpr float THROTTLE_DEADBAND = 0.05f;        // Bereich um 0 für Alt-Hold
+    constexpr float MAX_VZ = 2.0f;                    // m/s (limit für vertikale Geschwindigkeit)
+
+    float vz_setpoint = 0.0f;
+
+    if (std::fabs(throttleStick) > THROTTLE_DEADBAND) {
+        // Manuelle Steig-/Sinkrate
+        // Stick [-1,1] → [-MAX_VZ, +MAX_VZ]
+        vz_setpoint = throttleStick * MAX_VZ;
+
+        // Altitude-Hold ist inaktiv, Zielhöhe wird beim nächsten Zentrieren neu gesetzt
+        m_altHoldActive = false;
+    } else {
+        // Stick im Deadband → Altitude-Hold
+        if (!m_altHoldActive) {
+            // Beim Übergang in den Deadband: aktuelle Höhe einfrieren
+            m_altitudeSetpoint = m_altitude;
+            m_altHoldActive = true;
+        }
+
+        // Höhenregler: aus Höhe → gewünschte Vertikalgeschwindigkeit
+        vz_setpoint = pidAlt.update(m_altitudeSetpoint, m_altitude, dt);
+        // Optional: vz_setpoint begrenzen
+        if (vz_setpoint >  MAX_VZ) vz_setpoint =  MAX_VZ;
+        if (vz_setpoint < -MAX_VZ) vz_setpoint = -MAX_VZ;
+    }
+
+    // 6) Vz-Regler: gewünschte vs. Ist-Vertikalgeschwindigkeit → thrustOffset
+    float thrustOffset = pidVz.update(vz_setpoint, m_vz, dt);
+
+    // Basis-Schub = fester Hover + Vz-Offset
+    float thrust = thrustOffset;
+
+    // 7) Tilt-Kompensation: bei Roll/Pitch mehr Schub, damit vertikaler Lift stimmt
+    float tiltCos = std::cos(roll_e) * std::cos(pitch_e);
+    const float MIN_TILTCOS = 0.5f; // max Faktor 2 Kompensation
+    if (tiltCos < MIN_TILTCOS) {
+        tiltCos = MIN_TILTCOS;
+    }
+
+    thrust = thrust / tiltCos;
+
+    // 8) Schub begrenzen und an Mixer geben
     thrust = clamp(thrust, 0.0f, 1.0f);
 
-    // 9. Motoren mischen & ausgeben
     float motors[4];
     motorMixer.mix(thrust, tauRoll, tauPitch, tauYaw, motors);
-    //m_motorOutput.writeMotors(motors);    
+    
+    //motorOutput.writeMotors(motors);
+
+    logger.printfln("Th: %f, Ro: %f, Pi: %f, Ya: %f ", thrust, tauRoll, tauPitch, tauYaw);
 }
 
 float FlightControl::stickToThrust(float stick) {
@@ -149,9 +229,15 @@ void FlightControl::setup()
     motorMixer = MotorMixer();
     motorOutput = MotorOutput(&hal);
 
-    pidRollRate = PID(0.1f, 0.01f, 0.001f, 10.0f, 0.5f);
-    pidPitchRate = PID(0.1f, 0.01f, 0.001f, 10.0f, 0.5f);
-    pidYawRate = PID(0.1f, 0.01f, 0.000f, 10.0f, 0.5f);
+    pidRollRate = PID(4.0f, 0.01f, 0.001f, 10.0f, 1.0f);
+    pidPitchRate = PID(4.0f, 0.01f, 0.001f, 10.0f, 1.0f);
+    pidYawRate = PID(4.0f, 0.01f, 0.000f, 10.0f, 1.0f);
+
+    // Vz-Regler (geschätzte Werte)
+    pidVz  = PID(1.0f, 0.2f, 0.0f,  2.0f, 0.3f);  // output = thrustOffset
+
+    // Höhen-Regler (langsam, sanft)
+    pidAlt = PID(1.0f, 0.0f, 0.3f,  5.0f, 2.0f);  // output = vz_setpoint [m/s]
 
     int r = tinkerforgeIMU.start(&hal, interval, &onIMUData, this);
 

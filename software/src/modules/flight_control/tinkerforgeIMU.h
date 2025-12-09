@@ -7,7 +7,7 @@
 #define M_PI 3.14159265358979323846
  
 
-typedef void (*IMUUserCallback)(float lastGyro[3], Quaternion quaternion, void *context_data);
+typedef void (*IMUUserCallback)(float lastGyro[3], float linearAccData[3], Quaternion quaternion, void *context_data);
  
 class TinkerforgeIMU {
 

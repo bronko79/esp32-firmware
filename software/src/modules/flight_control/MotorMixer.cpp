@@ -29,6 +29,6 @@ void MotorMixer::mix(float thrust, float tauRoll, float tauPitch, float tauYaw, 
 
 
     for (int i = 0; i < 4; ++i) {
-        motors[i] = clamp(motors[i], 0.0f, 1.0f);
+        motors[i] = clamp(motors[i], 0.05f, 1.0f);
     }
 }

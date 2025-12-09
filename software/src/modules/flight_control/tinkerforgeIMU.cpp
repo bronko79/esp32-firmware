@@ -10,6 +10,7 @@ static void onIMUData(TF_IMUV3 *device, int16_t acceleration[3],
 
     TinkerforgeIMU *self = (TinkerforgeIMU *)user_data;
     float gyroData[3];
+    float linearAccData[3];
 
     constexpr float DEG_TO_RAD = static_cast<float>(M_PI) / 180.0f;
     constexpr float GYRO_SCALE = 1.0f / 16.0f; // 1/16 °/s
@@ -17,10 +18,11 @@ static void onIMUData(TF_IMUV3 *device, int16_t acceleration[3],
     for (int i = 0; i < 3; ++i) {
         // Gyro 
         float deg_per_s = static_cast<float>(angular_velocity[i]) * GYRO_SCALE;
-        gyroData[i] = deg_per_s * DEG_TO_RAD;   
+        gyroData[i] = deg_per_s * DEG_TO_RAD; 
+        linearAccData[i] = linear_acceleration[i];
     }
 
-    self->m_userCallback(gyroData, 
+    self->m_userCallback(gyroData, linearAccData,
         Quaternion(quaternion[0], quaternion[1], quaternion[2],quaternion[3])
         , self->m_context_data);
 }
